@@ -10,13 +10,19 @@ from folium.plugins import MousePosition
 from branca.colormap import linear
 from shapely.geometry import mapping
 
+data_path = "https://raw.githubusercontent.com/alwolmer/names_br/refs/heads/main/data/"
+
 # ✅ Step 1: Cached Data Loading Functions
 @st.cache_data
 def load_geo_data():
     """Loads geographic data (uf_geometries and imm_geometries) from the data/ directory and computes bounding box."""
-    uf_geometries = gpd.read_file("data/uf_geometries_simplified.geojson")
-    imm_geometries = gpd.read_file("data/imm_geometries_simplified.geojson")
-
+    try:
+        uf_geometries = gpd.read_file("data/uf_geometries_simplified.geojson")
+        imm_geometries = gpd.read_file("data/imm_geometries_simplified.geojson")
+    except:    
+        uf_geometries = gpd.read_file(f"{data_path}uf_geometries_simplified.geojson")
+        imm_geometries = gpd.read_file(f"{data_path}imm_geometries_simplified.geojson")
+                                       
     # Compute bounding box
     coords = [
         tuple(c) for feature in json.loads(imm_geometries.to_json())["features"]
@@ -37,8 +43,12 @@ def load_geo_data():
 @st.cache_data
 def load_name_data():
     """Loads name encoding and counts from the data/ directory."""
-    word_encoding_df = pd.read_csv("data/word_encoding.csv")
-    word_counts_imm = pd.read_csv("data/word_counts_imm.csv")
+    try:
+        word_encoding_df = pd.read_csv("data/word_encoding.csv")
+        word_counts_imm = pd.read_csv("data/word_counts_imm.csv")
+    except:
+        word_encoding_df = pd.read_csv(f"{data_path}word_encoding.csv")
+        word_counts_imm = pd.read_csv(f"{data_path}word_counts_imm.csv")
     
     return word_encoding_df, word_counts_imm
 
@@ -49,6 +59,9 @@ word_encoding_df, word_counts_imm = load_name_data()
 # ✅ Step 2: Compute ratios
 def compute_ratio(words, _type):
     """Computes relative frequency of names in each municipality."""
+
+    print(f"compute function: {words}")
+
     if isinstance(words, str):  
         words = [words]  
 
@@ -65,8 +78,6 @@ def compute_ratio(words, _type):
     merged_data['ratio'] = merged_data['ratio'].fillna(0)
 
     return merged_data
-
-imm_geometries.to_file(f'imm_geometries.geojson', driver='GeoJSON')
 
 # ✅ Step 3: Compute ratio difference
 def compute_ratio_difference(words1, words2, _type, normalize=False):
@@ -122,6 +133,8 @@ def style_function_int(feature):
 # ✅ Step 5: Generate the Map
 def generate_map(words, _type):
     """Generates frequency choropleth map."""
+    print(f"generate function: {words}")
+
     ratio_data = compute_ratio(words, _type)
     if ratio_data is None:
         return None
@@ -191,10 +204,18 @@ count_type_key = {
 
 # ✅ Handle frequency analysis
 if selected_analysis == "Frequência":
-    words = unidecode(st.text_input("Digite um nome ou lista de nomes (separados por vírgula):", value='SOUZA, SOUSA')).upper().split(",")
+    words = [
+        word.strip() 
+        for word in unidecode(st.text_input(
+            "Digite um nome ou lista de nomes (separados por vírgula):", 
+            value='SOUZA, SOUSA'
+        )).upper().split(",")
+    ]
     count_type = st.selectbox("Escolha o tipo de contagem:", ['Sobrenome', 'Prenome'])
 
     sorted_words = sorted(set(words))  # ✅ Sort names to detect changes
+
+    print(sorted_words)
 
     if (sorted_words != st.session_state["selected_words"] or count_type != st.session_state["selected_count_type"]) and (sorted_words and sorted_words[0]):
         st.session_state["selected_words"] = sorted_words
@@ -209,8 +230,22 @@ if selected_analysis == "Frequência":
 
 # ✅ Handle comparison analysis
 if selected_analysis == "Comparação":
-    words1 = unidecode(st.text_input("Grupo 1:", value='SOUZA')).upper().split(",")
-    words2 = unidecode(st.text_input("Grupo 2:", value='SOUSA')).upper().split(",")
+    words1 = [
+        word.strip() 
+        for word in unidecode(st.text_input(
+            "Digite um nome ou lista de nomes (separados por vírgula):", 
+            value='SOUZA'
+        )).upper().split(",")
+    ]
+    words2 = [
+        word.strip() 
+        for word in unidecode(st.text_input(
+            "Digite um nome ou lista de nomes (separados por vírgula):", 
+            value='SOUSA'
+        )).upper().split(",")
+    ]
+    # words1 = unidecode(st.text_input("Grupo 1:", value='SOUZA')).upper().split(",")
+    # words2 = unidecode(st.text_input("Grupo 2:", value='SOUSA')).upper().split(",")
     count_type = st.selectbox("Escolha o tipo de contagem:", ['Sobrenome', 'Prenome'])
     normalize = st.checkbox("Normalizar?")
 
